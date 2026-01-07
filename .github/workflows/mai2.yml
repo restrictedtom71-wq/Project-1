@@ -1,4 +1,4 @@
-name: win 10 RDP BlueStacks 
+name: BlueStacks no password project-2
 
 on:
   workflow_dispatch:
@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Configure Core RDP Settings
         run: |
+          # Enable RDP and disable requirement for NLA/Security layers to help with blank passwords
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
                              -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
@@ -18,7 +19,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
                              -Name "SecurityLayer" -Value 0 -Force
 
-          # Allow blank password RDP login
+          # CRITICAL: Allow blank password RDP login
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa' `
                              -Name "LimitBlankPasswordUse" -Value 0 -Force
 
@@ -32,8 +33,18 @@ jobs:
       - name: Create RDP User (Rayat) No Password
         run: |
           if (-not (Get-LocalUser -Name "Rayat" -ErrorAction SilentlyContinue)) {
+              # Create the user without a password
               New-LocalUser -Name "Rayat" -NoPassword -AccountNeverExpires
           }
+          
+          # Force settings so it never asks for a password change
+          Set-LocalUser -Name "Rayat" -PasswordNeverExpires $true
+          
+          # Use ADSI to ensure the 'Password change at next logon' is disabled
+          $user = [ADSI]"WinNT://localhost/Rayat,user"
+          $user.Put("PasswordExpired", 0)
+          $user.SetInfo()
+
           Add-LocalGroupMember -Group "Administrators" -Member "Rayat"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Rayat"
          
@@ -94,14 +105,14 @@ jobs:
 
       - name: Maintain Connection + Watch RDP User
         run: |
-          Write-Host "`n=== RDP ACCESS ==="
+          Write-Host "`n=== RDP ACCESS BY RAYAT ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: Rayat"
-          Write-Host "Password: [None]"
-          Write-Host "==================`n"
+          Write-Host "Password: [Leave Blank / Press Enter]"
+          Write-Host "==========================`n"
           
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Active - Session Running"
+              Write-Host "[$(Get-Date)] RDP Active - Session Heartbeat"
               Start-Sleep -Seconds 300
           }
           
